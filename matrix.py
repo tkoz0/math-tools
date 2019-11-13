@@ -1,14 +1,19 @@
 from fractions import Fraction
 from functools import reduce
 from typing import List
+from typing import Union
+import copy
 
 class DimensionError(Exception): pass
-class NotInvertible(Exception): pass
+class NotInvertibleError(Exception): pass
 
-class Matrix:
-    # Matrix: a representation of a matrix whose entries are rational numbers
-    # Invariant: self.M is a list of at least 1 row. Each row has the same
-    # positive length and consists of entries that are of type Fraction
+# RationalMatrix: matrix whose entries are rational numbers
+# Invariant: self.M is a list of at least 1 row. Each row has equal
+# positive length and consists of entries that are of type Fraction
+
+class RationalMatrix:
+
+    # check representation invariant
     def _check_rep(self):
         assert type(self.M) == list and len(self.M) > 0
         rlen = len(self.M[0])
@@ -16,58 +21,93 @@ class Matrix:
             assert len(r) == rlen
             for c in r:
                 assert type(c) == Fraction
-    # Initializes the matrix with zeroes. If 1 argument is given, the matrix is
-    # a square matrix.
-    def __init__(self,r,c=None):
-        if type(r) == type(self): self.M = r.M
+
+    # 1st argument is RationalMatrix: creates a copy
+    # 1st argument is int and no 2nd argument: creates a zeroed square matrix
+    # 2 arguments are int: creates a zeroed r by c matrix
+    def __init__(self, r:Union[int,RationalMatrix], c:int = None):
+        if type(r) == type(self):
+            self.M = copy.deepcopy(r.M)
         if c == None: c = r
         if type(r) != int or type(c) != int: raise TypeError()
         if r < 1 or c < 1: raise ValueError()
         self.M = [[Fraction(0)]*c for _ in range(r)]
+
+    # check matrix dimensions
     def rows(self) -> int: return len(self.M)
     def cols(self) -> int: return len(self.M[0])
-    def is_square(self) -> bool: return self.rows() == self.cols()
-    def is_identity(self) -> bool:
-        if not self.is_square(): return False
-        for r in range(self.rows()):
+    def isSquare(self) -> bool: return self.rows() == self.cols()
+
+    # kronecker delta
+    def _delta(r,c): return 1 if r == c else 0
+
+    # checks that each matrix entry satisfies a function of the position
+    def _checkM(f): # f: r,c,v -> bool
+        for r in range(self.rows()): # return false on first unsatisfied entry
             for c in range(self.cols()):
-                if self.M[r][c] != 1 if r == c else 0: return False
-        return True
-    def is_diagonal(self) -> bool:
-        if not self.is_square(): return False
-        for r in range(self.rows()):
-            for c in range(self.cols()):
-                if r != c and self.M[r][c] != 0: return False
-        return True
-    def set(self,r,c,n):
-        if type(n) == Fraction: self.M[r][c] = n
-        elif type(n) == int: self.M[r][c] = Fraction(n)
+                if not f(r,c,self.M[r][c]):
+                    return False
+        return True # all satisfy
+
+    # check matrix types, they use lambdas mapping r,c,v to boolean
+    # the value v at each position r,c must satisfy some condition
+    def isIdentity(self) -> bool: # entries equal to kronecker delta
+        return self.isSquare() and _checkM(lambda r,c,v: v == _delta(r,c))
+    def isDiagonal(self) -> bool: # r != c implies v == 0
+        return self.isSquare() and _checkM(lambda r,c,v: r == c or v == 0)
+    def isUpperTriangle(self) -> bool: # r > c implies v == 0
+        return self.isSquare() and _checkM(lambda r,c,v: r <= c or v == 0)
+    def isLowerTriangle(self) -> bool: # r < c implies v == 0
+        return self.isSquare() and _checkM(lambda r,c,v: r >= c or v == 0)
+    def isStrictUpperTriangle(self) -> bool: # r >= c implies v == 0
+        return self.isSquare() and _checkM(lambda r,c,v: r < c or v == 0)
+    def isStrictLowerTriangle(self) -> bool: # r <= c implies v == 0
+        return self.isSquare() and _checkM(lambda r,c,v: r > c or v == 0)
+
+    # modify a single entry
+    def set(self, r:int, c:int, v:Union[int,Fraction]):
+        if type(n) == Fraction: self.M[r][c] = v
+        elif type(n) == int: self.M[r][c] = Fraction(v)
         else: raise TypeError()
-    def get(self,r,c) -> Fraction: return self.M[r][c]
-    def get_row(self,r) -> List[Fraction]: return self.M[r]
-    def transpose(self) -> 'Matrix': # returns a new matrix
-        T = RationalMatrix(self.cols(),self.rows())
-        for r in range(self.rows()):
-            for c in range(self.cols()):
-                T.M[c][r] = self.M[r][c]
+
+    # access matrix, getRow and getMatrix expose representation
+    def get(self,r:int,c:int) -> Fraction: return self.M[r][c]
+    def getRow(self,r:int) -> List[Fraction]: return self.M[r]
+    def getCol(self,c:int) -> List[Fraction]:
+        return [self.M[r][c] for r in range(self.rows())]
+    def getMatrix(self): return self.M
+
+    # returns a new matrix that is equal to the transpose
+    def transpose(self) -> 'RationalMatrix': # returns a new matrix
+        T = RationalMatrix(1)
+        T.M = [ [M[c][r] for c in range(self.rows())]
+                for r in range(self.cols())]
         return T
+
+    # augments the matrix (such as for solving a linear system) by adding a
+    # number to the end of each row
     def augment(self,b): # appends entries to each row
-        if type(b) != list: raise TypeError()
         if len(b) != self.rows(): raise ValueError()
-        for n in b:
-            if type(n) != Fraction and type(n) != int: raise ValueError()
-        for r in range(self.rows()):
+        for n in b: # check types
+            if type(n) != Fraction and type(n) != int:
+                raise ValueError()
+        for r in range(self.rows()): # append to each row
             if type(b[r]) == Fraction: self.M[r].append(b[r])
             else: self.M[r].append(Fraction(b[r]))
-    def _det_split(self,r,c): # split sub matrix for determinant computation
-        N = self.M[0:r] + self.M[r+1:]
-        for i in range(len(N)): N[i] = N[i][:c] + N[i][c+1:]
-        R = Matrix(1)
-        R.M = N
-        return R
-    def _parity(self,n): return 1 if n % 2 == 0 else -1
+
+    # matrix split for determinant computation with cofactor expansion
+    def _det_split(self,r,c):
+        M = [r[:c]+r[c+1:] for r in self.M[0:r]+self.M[r+1:]]
+        D = RationalMatrix(1)
+        D.M = M
+        return D
+
+    def _parity(self,n): return 1 if n % 2 == 0 else -1 # (-1)^n
+
+#################### TODO REFACTOR BELOW #########################
+
     # compute determinant using cofactor expansion (slow)
-    def det(self) -> Fraction:
+    def det_cofactor(self) -> Fraction:
         if not self.is_square(): raise DimensionError()
         n = self.rows() # for convenience, since matrix must be square
         if n == 1: return self.M[0][0] # base case
