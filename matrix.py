@@ -25,14 +25,14 @@ class RationalMatrix:
     # 1st argument is RationalMatrix: creates a copy
     # 1st argument is int and no 2nd argument: creates a zeroed square matrix
     # 2 arguments are int: creates a zeroed r by c matrix
-    def __init__(self, r:Union[int,'RationalMatrix'], c:int = None):
-        if type(r) == type(self):
-            self.M = copy.deepcopy(r.M)
-            return
+    def __init__(self, r:int, c:int = None):
         if c == None: c = r
         if type(r) != int or type(c) != int: raise TypeError()
         if r < 1 or c < 1: raise ValueError()
         self.M = [[Fraction(0)]*c for _ in range(r)]
+
+    # return a copy of this matrix
+    def clone(self): return copy.deepcopy(self)
 
     # check matrix dimensions
     def rows(self) -> int: return len(self.M)
@@ -99,6 +99,9 @@ class RationalMatrix:
     def getMatrix(self): return self.M
 
 ####### TODO TEST ALL BELOW ########
+
+    # construct a submatrix
+    def submatrix(): pass
 
     # returns a new matrix that is equal to the transpose
     def transpose(self) -> 'RationalMatrix': # returns a new matrix
@@ -234,12 +237,6 @@ class RationalMatrix:
                                       for c in range(self.cols()))+']'
                          for r in M)
 
-    # return a copy of this matrix
-    def clone(self):
-        M = RationalMatrix(1)
-        M.M = copy.deepcopy(self.M)
-        return M
-
     # some types of matrices
     def identity(n:int): # identity matrix
         M = RationalMatrix(n)
@@ -318,7 +315,7 @@ def testConstructor():
     A = RationalMatrix(4,2)
     assert A.M == [[0,0],[0,0],[0,0],[0,0]]
     A = _makeMatrix([[1,2],[3,4],[Fraction(1,2),Fraction(-1,2)]])
-    B = RationalMatrix(A)
+    B = A.clone()
     assert A == B
     assert not (A.M is B.M)
 
