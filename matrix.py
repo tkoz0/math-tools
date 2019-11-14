@@ -25,7 +25,7 @@ class RationalMatrix:
     # 1st argument is RationalMatrix: creates a copy
     # 1st argument is int and no 2nd argument: creates a zeroed square matrix
     # 2 arguments are int: creates a zeroed r by c matrix
-    def __init__(self, r:Union[int,RationalMatrix], c:int = None):
+    def __init__(self, r:Union[int,'RationalMatrix'], c:int = None):
         if type(r) == type(self):
             self.M = copy.deepcopy(r.M)
         if c == None: c = r
@@ -38,36 +38,42 @@ class RationalMatrix:
     def cols(self) -> int: return len(self.M[0])
     def isSquare(self) -> bool: return self.rows() == self.cols()
 
-    # kronecker delta
-    def _delta(r,c): return 1 if r == c else 0
-
+    # helper functions
+    def _delta(r,c): return 1 if r == c else 0 # kronecker delta
+    def _parity(self,n): return 1 if n % 2 == 0 else -1 # (-1)^n
     # checks that each matrix entry satisfies a function of the position
-    def _checkM(f): # f: r,c,v -> bool
+    def _checkM(self,f): # f: r,c,v -> bool
         for r in range(self.rows()): # return false on first unsatisfied entry
             for c in range(self.cols()):
                 if not f(r,c,self.M[r][c]):
                     return False
         return True # all satisfy
+    # matrix split for determinant computation with cofactor expansion
+    def _det_split(self,r,c):
+        M = [r[:c]+r[c+1:] for r in self.M[0:r]+self.M[r+1:]]
+        D = RationalMatrix(1)
+        D.M = M
+        return D
 
     # check matrix types, they use lambdas mapping r,c,v to boolean
     # the value v at each position r,c must satisfy some condition
     def isIdentity(self) -> bool: # entries equal to kronecker delta
-        return self.isSquare() and _checkM(lambda r,c,v: v == _delta(r,c))
+        return self.isSquare() and self._checkM(lambda r,c,v: v == _delta(r,c))
     def isDiagonal(self) -> bool: # r != c implies v == 0
-        return self.isSquare() and _checkM(lambda r,c,v: r == c or v == 0)
+        return self.isSquare() and self._checkM(lambda r,c,v: r == c or v == 0)
     def isUpperTriangle(self) -> bool: # r > c implies v == 0
-        return self.isSquare() and _checkM(lambda r,c,v: r <= c or v == 0)
+        return self.isSquare() and self._checkM(lambda r,c,v: r <= c or v == 0)
     def isLowerTriangle(self) -> bool: # r < c implies v == 0
-        return self.isSquare() and _checkM(lambda r,c,v: r >= c or v == 0)
+        return self.isSquare() and self._checkM(lambda r,c,v: r >= c or v == 0)
     def isStrictUpperTriangle(self) -> bool: # r >= c implies v == 0
-        return self.isSquare() and _checkM(lambda r,c,v: r < c or v == 0)
+        return self.isSquare() and self._checkM(lambda r,c,v: r < c or v == 0)
     def isStrictLowerTriangle(self) -> bool: # r <= c implies v == 0
-        return self.isSquare() and _checkM(lambda r,c,v: r > c or v == 0)
+        return self.isSquare() and self._checkM(lambda r,c,v: r > c or v == 0)
 
     # modify a single entry
     def set(self, r:int, c:int, v:Union[int,Fraction]):
-        if type(n) == Fraction: self.M[r][c] = v
-        elif type(n) == int: self.M[r][c] = Fraction(v)
+        if type(v) == Fraction: self.M[r][c] = v
+        elif type(v) == int: self.M[r][c] = Fraction(v)
         else: raise TypeError()
 
     # access matrix, getRow and getMatrix expose representation
@@ -95,66 +101,65 @@ class RationalMatrix:
             if type(b[r]) == Fraction: self.M[r].append(b[r])
             else: self.M[r].append(Fraction(b[r]))
 
-    # matrix split for determinant computation with cofactor expansion
-    def _det_split(self,r,c):
-        M = [r[:c]+r[c+1:] for r in self.M[0:r]+self.M[r+1:]]
-        D = RationalMatrix(1)
-        D.M = M
-        return D
-
-    def _parity(self,n): return 1 if n % 2 == 0 else -1 # (-1)^n
-
-#################### TODO REFACTOR BELOW #########################
-
     # compute determinant using cofactor expansion (slow)
-    def det_cofactor(self) -> Fraction:
-        if not self.is_square(): raise DimensionError()
+    def detCofactor(self) -> Fraction:
+        if not self.isSquare(): raise DimensionError()
         n = self.rows() # for convenience, since matrix must be square
         if n == 1: return self.M[0][0] # base case
         # find row/col with most zeroes to optimize computation
+        # count zeroes in each row and column
         row0 = [sum(1 if n == 0 else 0 for n in r) for r in self.M]
         col0 = [sum(1 if self.M[r][c] == 0 else 0 for r in range(n))
                 for c in range(n)]
-        use_row = True
+        use_row = True # expand over row or column
         best_index = 0
         most_zeroes = 0
-        for r in range(1,n):
+        for r in range(1,n): # find row with more zeroes
             if row0[r] > most_zeroes: best_index, most_zeroes = r, row0[r]
-        for c in range(n):
+        for c in range(n): # find column with more zeroes
             if col0[c] > most_zeroes:
                 use_row = False
                 best_index, most_zeroes = c, col0[c]
-        if use_row:
+        if use_row: # optimize computation by using row/col with
             return sum(self._parity(best_index+c) * self.M[best_index][c]
-                       * self._det_split(best_index,c).det()
+                       * self._det_split(best_index,c).detCofactor()
                        for c in range(n))
         else: return sum(self._parity(r+best_index) * self.M[r][best_index]
-                         * self._det_split(r,best_index).det()
+                         * self._det_split(r,best_index).detCofactor()
                          for r in range(n))
-    def det_fast(self) -> Fraction:
-        if not self.is_square(): raise DimensionError()
-        M = self.clone()
-        multiplier, n = Fraction(1), M.rows()
+
+    # compute determinant using row reduction (faster)
+    def detRowReduce(self) -> Fraction:
+        if not self.isSquare(): raise DimensionError()
+        M = self.clone() # row reduce a copy
+        n = M.rows()
+        multiplier = Fraction(1) # multiply at end, due to swapping rows
         for r in range(n): # row reduce
             if M.M[r][r] == 0: # swap in a pivot row
                 pr = -1 # pivot row
-                for rr in range(r+1,n):
+                for rr in range(r+1,n): # find pivot row
                     if M.M[rr][r] != 0:
                         pr = rr
                         break
-                if pr == -1: return Fraction(0) # cannot find pivot row
+                if pr == -1: return M.M[r][r] # cannot find pivot row
+                # (return existing zero instead of making new fraction)
                 else: # swap and negate multiplier
-                    M.swap_rows(r,pr)
+                    M.swapRows(r,pr)
                     multiplier *= -1
-            for rr in range(r+1,n): # zero out column for upper triangle form
-                M.add_row_mult(-M.M[rr][r]/M.M[r][r],r,rr)
+            # zero out column for upper triangle form
+            for rr in range(r+1,n): # subtract with leading M.M[rr][r]
+                M.addRowMult(-M.M[rr][r]/M.M[r][r],r,rr)
+        # multiplier times product of diagonal
         return multiplier * reduce(lambda x,y: x*y,
                                    [M.M[r][r] for r in range(n)])
-    def inverse(self) -> 'Matrix':
-        if not self.is_square(): raise DimensionError()
+
+    # return a new matrix that is the inverse, exception if not invertible
+    def inverse(self) -> 'RationalMatrix':
+        if not self.isSquare(): raise DimensionError()
         n = self.rows()
+        # convert (M|N) = (original|I) --> (M|N) = (I|inverse)
         M = self.clone()
-        N = Matrix.identity(n) # perform same row operations to get inverse
+        N = RationalMatrix.identity(n)
         for r in range(n): # row reduce to M being an upper triangle matrix
             if M.M[r][r] == 0: # swap in a pivot row
                 pr = -1 # pivot row
@@ -162,36 +167,40 @@ class RationalMatrix:
                     if M.M[rr][r] != 0:
                         pr = rr
                         break
-                if pr == -1: raise NotInvertible() # cannot find pivot row
-                else: # swap and negate multiplier
-                    M.swap_rows(r,pr)
-                    N.swap_rows(r,pr)
+                if pr == -1: raise NotInvertibleError() # cannot find pivot row
+                else: # swap in pivot row
+                    M.swapRows(r,pr)
+                    N.swapRows(r,pr)
             row_mult = 1/M.M[r][r]
-            M.mult_row(row_mult,r) # have leading element become 1
-            N.mult_row(row_mult,r)
+            M.multRow(row_mult,r) # have leading element become 1
+            N.multRow(row_mult,r)
             for rr in range(r+1,n): # zero out column for upper triangle form
                 row_mult = -M.M[rr][r]
-                M.add_row_mult(row_mult,r,rr)
-                N.add_row_mult(row_mult,r,rr)
+                M.addRowMult(row_mult,r,rr)
+                N.addRowMult(row_mult,r,rr)
         for r in range(n-1,-1,-1): # reduce upward to get M = I
             for rr in range(r-1,-1,-1):
                 row_mult = -M.M[rr][r]
-                M.add_row_mult(row_mult,r,rr)
-                N.add_row_mult(row_mult,r,rr)
+                ###### TODO MAY BE ABLE TO ELIMINATE NEXT LINE #######
+                M.addRowMult(row_mult,r,rr)
+                N.addRowMult(row_mult,r,rr)
         return N
-    def swap_rows(self,r1,r2):
+
+    # row manipulations, these modify the matrix
+    def swapRows(self,r1:int,r2:int):
         self.M[r1], self.M[r2] = self.M[r2], self.M[r1]
-    def mult_row(self,a,r):
+    def multRow(self,a:Union[int,Fraction],r:int):
         if type(a) != int and type(a) != Fraction: raise TypeError()
-        for c in range(self.cols()):
-            self.M[r][c] *= a
-    def add_row_mult(self,a,r1,r2):
+        self.M[r] = [a*c for c in self.M[r]]
+    def addRowMult(self,a:Union[int,Fraction],r1:int,r2:int): # add a*r1 to r2
         if type(a) != int and type(a) != Fraction: raise TypeError()
         for c in range(self.cols()):
             self.M[r2][c] += a * self.M[r1][c]
+
+    # string representation: each row as [n1 n2 ... nc], columns are aligned
     def __str__(self):
         M = [list(map(str,r)) for r in self.M]
-        col_len = [0]*self.cols()
+        col_len = [0]*self.cols() # compute column widths needed for alignment
         for r in M:
             for i,c in enumerate(r):
                 col_len[i] = max(col_len[i],len(c))
@@ -199,48 +208,59 @@ class RationalMatrix:
         return '\n'.join('['+' '.join(pad(r[c],c)
                                       for c in range(self.cols()))+']'
                          for r in M)
+
+    # return a copy of this matrix
     def clone(self):
-        M = Matrix(1)
-        M.M = [r[:] for r in self.M]
+        M = RationalMatrix(1)
+        M.M = copy.deepcopy(self.M)
         return M
-    def identity(n): # identity matrix
-        M = Matrix(n)
+
+    # some types of matrices
+    def identity(n:int): # identity matrix
+        M = RationalMatrix(n)
         for i in range(n): M.set(i,i,1)
         return M
-    def diagonal(e): # diagonal matrix with entries
+    def diagonal(e:list): # diagonal matrix with entries
         if type(e) != list: raise TypeError()
-        M = Matrix(len(e))
+        M = RationalMatrix(len(e))
         for i,n in enumerate(e):
             M.set(i,i,n)
         return M
-    def scale(self,s): # scalar multiple
+
+    def scale(self,s:Union[int,Fraction]): # scalar multiple
         if type(s) != int and type(s) != Fraction: raise TypeError()
         self.M = [[s * self.M[r][c] for c in range(self.cols())]
                   for r in range(self.rows())]
+
+    # operator overloading
     def __add__(self,M):
         if self.rows() != M.rows() or self.cols() != M.cols():
             raise DimensionError()
-        N = Matrix(1)
+        N = RationalMatrix(1)
         N.M = [[self.M[r][c] + M.M[r][c] for c in range(self.cols())]
                for r in range(self.rows())]
+        return N
     def __sub__(self,M):
-        N = M.clone()
-        N.scale(-1)
-        return self.__add__(N)
+        if self.rows() != M.rows() or self.cols() != M.cols():
+            raise DimensionError()
+        N = RationalMatrix(1)
+        N.M = [[self.M[r][c] - M.M[r][c] for c in range(self.cols())]
+               for r in range(self.rows())]
+        return N
     def __mul__(self,M):
         if self.cols() != M.rows(): raise DimensionError()
-        N = Matrix(1)
+        N = RationalMatrix(1)
         N.M = [[sum(self.M[r][i] * M.M[i][c] for i in range(self.cols()))
                 for c in range(M.cols())]
                for r in range(self.rows())]
         return N
-    def __pow__(self,p):
+    def __pow__(self,p:int): # TODO possibly use diagonalization
         if type(p) != int: raise TypeError()
-        if not self.is_square(): raise DimensionError()
+        if not self.isSquare(): raise DimensionError()
         n = self.rows()
-        if self.is_diagonal():
-            return Matrix.diagonal([self.M[r][r]**p for r in range(n)])
-        if p == 0: return Matrix.identity(self.rows())
+        if self.isDiagonal(): # fast case
+            return RationalMatrix.diagonal([self.M[r][r]**p for r in range(n)])
+        if p == 0: return RationalMatrix.identity(self.rows())
         elif p >= 1:
             M = self.clone()
             for _ in range(1,p): M *= self
@@ -261,32 +281,32 @@ def _fix(A):
             A.M[r][c] = Fraction(A.M[r][c])
 
 if __name__ == '__main__':
-    A = Matrix(1)
+    A = RationalMatrix(1)
     A.set(0,0,5)
     print(A)
-    print('det =',A.det(), '(should be 5)')
-    print('det =',A.det_fast(), '(should be 5)')
+    print('det =',A.detRowReduce(), '(should be 5)')
+    print('det =',A.detCofactor(), '(should be 5)')
     A.M = [[1,2],
            [3,4]]
     _fix(A)
     print(A)
-    print('det =',A.det(), '(should be -2)')
-    print('det =',A.det_fast(), '(should be -2)')
+    print('det =',A.detRowReduce(), '(should be -2)')
+    print('det =',A.detCofactor(), '(should be -2)')
     A.M = [[1,2,3],
            [2,-2,2],
            [-1,0,5]]
     _fix(A)
     print(A)
-    print('det =',A.det(), '(should be -40)')
-    print('det =',A.det_fast(), '(should be -40)')
+    print('det =',A.detRowReduce(), '(should be -40)')
+    print('det =',A.detCofactor(), '(should be -40)')
     A.M = [[1,-1,1,-1],
            [5,0,6,7],
            [3,-1,-1,-1],
            [1,0,1,1]]
     _fix(A)
     print(A)
-    print('det =',A.det(), '(should be 6)')
-    print('det =',A.det_fast(), '(should be 6)')
+    print('det =',A.detRowReduce(), '(should be 6)')
+    print('det =',A.detCofactor(), '(should be 6)')
     print('begin inverse')
     D = A.inverse()
     print(D)
@@ -295,27 +315,27 @@ if __name__ == '__main__':
     A.M = [[Fraction(-2,3),Fraction(-1,4)],
          [Fraction(-1,5),Fraction(1,2)]]
     print(A)
-    print('det =',A.det(), '(should be -23/60)')
-    print('det =',A.det_fast(), '(should be -23/60)')
+    print('det =',A.detRowReduce(), '(should be -23/60)')
+    print('det =',A.detCofactor(), '(should be -23/60)')
     A.M = [[1,-1,1,-1],
            [5,0,6,7],
            [3,-1,-1,-1],
            [-1,-2,-6,-9]] # last row = r1 - r2 + r3
     _fix(A)
     print(A)
-    print('det =',A.det(), '(should be 0)')
-    print('det =',A.det_fast(), '(should be 0)')
+    print('det =',A.detRowReduce(), '(should be 0)')
+    print('det =',A.detCofactor(), '(should be 0)')
     try:
         Z = A.inverse()
         print(Z)
-    except NotInvertible:
+    except NotInvertibleError:
         print('cannot invert')
     print('identity')
-    print(Matrix.identity(5))
+    print(RationalMatrix.identity(5))
     print('diagonal')
-    print(Matrix.diagonal([1,-2,3,-4,5]))
+    print(RationalMatrix.diagonal([1,-2,3,-4,5]))
     print('diagonal power')
-    print(Matrix.diagonal([1,2,3])**-3)
+    print(RationalMatrix.diagonal([1,2,3])**-3)
     print('power')
     A.M = [[1,2],
            [3,4]]
@@ -324,23 +344,23 @@ if __name__ == '__main__':
     print(A**1)
     print(A**2)
     print(A**3)
-    B = Matrix(2)
+    B = RationalMatrix(2)
     B.M = [[7,10],
            [15,22]]
     _fix(B)
     print(A**2 == B)
     print('row operations')
-    I = Matrix.identity(2)
+    I = RationalMatrix.identity(2)
     print(I)
-    I.swap_rows(0,1)
+    I.swapRows(0,1)
     print(I)
-    I.mult_row(2,1)
+    I.multRow(2,1)
     print(I)
-    I.mult_row(-3,0)
+    I.multRow(-3,0)
     print(I)
-    I.add_row_mult(-1,1,0)
+    I.addRowMult(-1,1,0)
     print(I)
-    I.add_row_mult(2,0,1)
+    I.addRowMult(2,0,1)
     print(I)
     print('inverse')
     print(A)
@@ -353,7 +373,7 @@ if __name__ == '__main__':
     print(A**-1)
     print(A**-2)
     print('identity again')
-    I = Matrix.identity(3)
+    I = RationalMatrix.identity(3)
     print(I.inverse())
     print(I*I == I)
     print(I*I.inverse())
