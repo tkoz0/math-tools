@@ -14,7 +14,7 @@ class NotInvertibleError(Exception): pass
 class RationalMatrix:
 
     # check representation invariant
-    def _check_rep(self):
+    def _checkRep(self):
         assert type(self.M) == list and len(self.M) > 0
         rlen = len(self.M[0])
         for r in self.M:
@@ -28,6 +28,7 @@ class RationalMatrix:
     def __init__(self, r:Union[int,'RationalMatrix'], c:int = None):
         if type(r) == type(self):
             self.M = copy.deepcopy(r.M)
+            return
         if c == None: c = r
         if type(r) != int or type(c) != int: raise TypeError()
         if r < 1 or c < 1: raise ValueError()
@@ -40,7 +41,7 @@ class RationalMatrix:
 
     # helper functions
     def _delta(r,c): return 1 if r == c else 0 # kronecker delta
-    def _parity(self,n): return 1 if n % 2 == 0 else -1 # (-1)^n
+    def _parity(n): return 1 if n % 2 == 0 else -1 # (-1)^n
     # checks that each matrix entry satisfies a function of the position
     def _checkM(self,f): # f: r,c,v -> bool
         for r in range(self.rows()): # return false on first unsatisfied entry
@@ -58,7 +59,8 @@ class RationalMatrix:
     # check matrix types, they use lambdas mapping r,c,v to boolean
     # the value v at each position r,c must satisfy some condition
     def isIdentity(self) -> bool: # entries equal to kronecker delta
-        return self.isSquare() and self._checkM(lambda r,c,v: v == _delta(r,c))
+        return self.isSquare() and self._checkM(lambda r,c,v:
+                                                v == RationalMatrix._delta(r,c))
     def isDiagonal(self) -> bool: # r != c implies v == 0
         return self.isSquare() and self._checkM(lambda r,c,v: r == c or v == 0)
     def isUpperTriangle(self) -> bool: # r > c implies v == 0
@@ -70,11 +72,24 @@ class RationalMatrix:
     def isStrictLowerTriangle(self) -> bool: # r <= c implies v == 0
         return self.isSquare() and self._checkM(lambda r,c,v: r > c or v == 0)
 
-    # modify a single entry
-    def set(self, r:int, c:int, v:Union[int,Fraction]):
+    # modify entry or row
+    def set(self,r:int,c:int,v:Union[int,Fraction]):
         if type(v) == Fraction: self.M[r][c] = v
         elif type(v) == int: self.M[r][c] = Fraction(v)
         else: raise TypeError()
+    def setRow(self,r:int,v:List[Union[int,Fraction]]):
+        if type(v) != list: raise TypeError()
+        if len(v) != self.rows(): raise DimensionError()
+        for e in v:
+            if type(e) != int and type(e) != Fraction: raise ValueError()
+        self.M[r] = [Fraction(e) for e in v]
+    def setCol(self,c:int,v:List[Union[int,Fraction]]):
+        if type(v) != list: raise TypeError()
+        if len(v) != self.cols(): raise DimensionError()
+        for e in v:
+            if type(e) != int and type(e) != Fraction: raise ValueError()
+        for r in range(self.cols()):
+            self.M[r][c] = Fraction(v[r])
 
     # access matrix, getRow and getMatrix expose representation
     def get(self,r:int,c:int) -> Fraction: return self.M[r][c]
@@ -82,6 +97,8 @@ class RationalMatrix:
     def getCol(self,c:int) -> List[Fraction]:
         return [self.M[r][c] for r in range(self.rows())]
     def getMatrix(self): return self.M
+
+####### TODO TEST ALL BELOW ########
 
     # returns a new matrix that is equal to the transpose
     def transpose(self) -> 'RationalMatrix': # returns a new matrix
@@ -186,6 +203,14 @@ class RationalMatrix:
                 N.addRowMult(row_mult,r,rr)
         return N
 
+    # perform gaussian elimination (reduce to upper triangle)
+    def gaussElim():
+        pass
+
+    # perform gauss-jordan elimination (reduce to identity)
+    def gaussJordanElim():
+        pass
+
     # row manipulations, these modify the matrix
     def swapRows(self,r1:int,r2:int):
         self.M[r1], self.M[r2] = self.M[r2], self.M[r1]
@@ -275,105 +300,124 @@ class RationalMatrix:
             reduce(lambda x,y: x and y, [self.M[r] == M.M[r]
                    for r in range(self.rows())])
 
-def _fix(A):
-    for r in range(A.rows()):
-        for c in range(A.cols()):
-            A.M[r][c] = Fraction(A.M[r][c])
+def _makeMatrix(L): # convert to fractions
+    M = RationalMatrix(1)
+    M.M = [[Fraction(c) for c in r] for r in L]
+    M._checkRep()
+    return M
+
+def testConstructor():
+    A = RationalMatrix(1)
+    assert A.M == [[0]]
+    A = RationalMatrix(2)
+    assert A.M == [[0,0],[0,0]]
+    A = RationalMatrix(3)
+    assert A.M == [[0,0,0],[0,0,0],[0,0,0]]
+    A = RationalMatrix(2,3)
+    assert A.M == [[0,0,0],[0,0,0]]
+    A = RationalMatrix(4,2)
+    assert A.M == [[0,0],[0,0],[0,0],[0,0]]
+    A = _makeMatrix([[1,2],[3,4],[Fraction(1,2),Fraction(-1,2)]])
+    B = RationalMatrix(A)
+    assert A == B
+    assert not (A.M is B.M)
+
+def testDimensions(): # rows(), cols(), isSquare()
+    A = RationalMatrix(2)
+    assert A.rows() == A.cols() == 2 and A.isSquare(), \
+           '%d %d'%(A.rows(),A.cols())
+    A = RationalMatrix(5,7)
+    assert A.rows() == 5 and A.cols() == 7 and not A.isSquare(), \
+           '%d %d'%(A.rows(),A.cols())
+
+def _getTypes(M): # makes a boolean array for matrix types
+    return [M.isIdentity(),M.isDiagonal(),
+            M.isUpperTriangle(),M.isLowerTriangle(),
+            M.isStrictUpperTriangle(),M.isStrictLowerTriangle()]
+
+def _cmpBools(s,L): # compares bool string with T and F to array
+    for i,b in enumerate(L):
+        if (s[i] == 'T') != b: return False
+    return True
+
+# isIdentity(), isDiagonal(), isUpperTriangle(), isLowerTriangle(),
+# isStrictUpperTriangle(), isStrictLowerTriangle()
+def testTypes():
+    # [1 0]
+    # [0 1]
+    A = _makeMatrix([[1,0],[0,1]])
+    assert _cmpBools('TTTTFF',_getTypes(A)), _getTypes(A)
+    # [5    0    0]
+    # [0 -3/2    0]
+    # [0    0 -5/7]
+    B = _makeMatrix([[5,0,0],[0,Fraction(-3,2),0],[0,0,Fraction(-5,7)]])
+    assert _cmpBools('FTTTFF',_getTypes(B)), _getTypes(B)
+    # [1   2    3]
+    # [0 1/2  1/3]
+    # [0   0 -1/4]
+    C = _makeMatrix([[1,2,3],[0,Fraction(1,2),Fraction(1,3)],
+                     [0,0,Fraction(-1,4)]])
+    assert _cmpBools('FFTFFF',_getTypes(C)), _getTypes(C)
+    # [0 0]
+    # [0 0]
+    D = RationalMatrix(2)
+    assert _cmpBools('FTTTTT',_getTypes(D)), _getTypes(D)
+    # [0 1 2 3]
+    # [0 0 0 4]
+    # [0 0 0 5]
+    # [0 0 0 0]
+    E = _makeMatrix([[0,1,2,3],[0,0,0,4],[0,0,0,5],[0,0,0,0]])
+    assert _cmpBools('FFTFTF',_getTypes(E)), _getTypes(E)
+    # [  0   0  0 0]
+    # [ -5   0  0 0]
+    # [-10   0  0 0]
+    # [  0 -10 -5 0]
+    F = _makeMatrix([[0,0,0,0],[-5,0,0,0],[-10,0,0,0],[0,-10,-5,0]])
+    assert _cmpBools('FFFTFT',_getTypes(F)), _getTypes(F)
+    # make 1 change to E and F and test again
+    E.M[3][3] = Fraction(6)
+    assert _cmpBools('FFTFFF',_getTypes(E)), _getTypes(E)
+    F.M[1][2] = Fraction(-1)
+    assert _cmpBools('FFFFFF',_getTypes(F)), _getTypes(F)
+    E._checkRep()
+    F._checkRep()
+
+def testEntries(): # get(), getRow(), getCol(), set(), setRow(), setCol()
+    # [1   2    3]
+    # [0 1/2  1/3]
+    # [0   0 -1/4]
+    C = _makeMatrix([[1,2,3],[0,Fraction(1,2),Fraction(1,3)],
+                     [0,0,Fraction(-1,4)]])
+    assert C.get(0,0) == 1
+    assert C.get(2,0) == 0
+    assert C.get(1,2) == Fraction(1,3)
+    assert C.getRow(1) == [0,Fraction(1,2),Fraction(1,3)]
+    C._checkRep()
+    C.set(0,1,-2)
+    C.set(2,1,Fraction(1,4))
+    assert C.get(2,1) == Fraction(1,4)
+    assert C.get(0,1) == -2
+    C._checkRep()
+    C.setRow(1,[-1,2,Fraction(-1,2)])
+    assert C.getRow(0) == [1,-2,3]
+    assert C.getRow(1) == [-1,2,Fraction(-1,2)]
+    C._checkRep()
+    # [ 1  -2    3]
+    # [-1   2 -1/2]
+    # [ 0 1/4 -1/4]
+    assert C.getCol(0) == [1,-1,0]
+    assert C.getCol(2) == [3,-Fraction(1,2),-Fraction(1,4)]
+    C.setCol(2,[0,Fraction(0),Fraction(-2,3)])
+    assert C.getCol(2) == [Fraction(0),0,Fraction(-2,3)]
+    C._checkRep()
 
 if __name__ == '__main__':
-    A = RationalMatrix(1)
-    A.set(0,0,5)
-    print(A)
-    print('det =',A.detRowReduce(), '(should be 5)')
-    print('det =',A.detCofactor(), '(should be 5)')
-    A.M = [[1,2],
-           [3,4]]
-    _fix(A)
-    print(A)
-    print('det =',A.detRowReduce(), '(should be -2)')
-    print('det =',A.detCofactor(), '(should be -2)')
-    A.M = [[1,2,3],
-           [2,-2,2],
-           [-1,0,5]]
-    _fix(A)
-    print(A)
-    print('det =',A.detRowReduce(), '(should be -40)')
-    print('det =',A.detCofactor(), '(should be -40)')
-    A.M = [[1,-1,1,-1],
-           [5,0,6,7],
-           [3,-1,-1,-1],
-           [1,0,1,1]]
-    _fix(A)
-    print(A)
-    print('det =',A.detRowReduce(), '(should be 6)')
-    print('det =',A.detCofactor(), '(should be 6)')
-    print('begin inverse')
-    D = A.inverse()
-    print(D)
-    print(D*A)
-    print('end inverse')
-    A.M = [[Fraction(-2,3),Fraction(-1,4)],
-         [Fraction(-1,5),Fraction(1,2)]]
-    print(A)
-    print('det =',A.detRowReduce(), '(should be -23/60)')
-    print('det =',A.detCofactor(), '(should be -23/60)')
-    A.M = [[1,-1,1,-1],
-           [5,0,6,7],
-           [3,-1,-1,-1],
-           [-1,-2,-6,-9]] # last row = r1 - r2 + r3
-    _fix(A)
-    print(A)
-    print('det =',A.detRowReduce(), '(should be 0)')
-    print('det =',A.detCofactor(), '(should be 0)')
-    try:
-        Z = A.inverse()
-        print(Z)
-    except NotInvertibleError:
-        print('cannot invert')
-    print('identity')
-    print(RationalMatrix.identity(5))
-    print('diagonal')
-    print(RationalMatrix.diagonal([1,-2,3,-4,5]))
-    print('diagonal power')
-    print(RationalMatrix.diagonal([1,2,3])**-3)
-    print('power')
-    A.M = [[1,2],
-           [3,4]]
-    _fix(A)
-    print(A**0)
-    print(A**1)
-    print(A**2)
-    print(A**3)
-    B = RationalMatrix(2)
-    B.M = [[7,10],
-           [15,22]]
-    _fix(B)
-    print(A**2 == B)
-    print('row operations')
-    I = RationalMatrix.identity(2)
-    print(I)
-    I.swapRows(0,1)
-    print(I)
-    I.multRow(2,1)
-    print(I)
-    I.multRow(-3,0)
-    print(I)
-    I.addRowMult(-1,1,0)
-    print(I)
-    I.addRowMult(2,0,1)
-    print(I)
-    print('inverse')
-    print(A)
-    print(A.inverse())
-    print(A*A.inverse())
-    print(A == A.inverse())
-    print('inverse powers')
-    print(A)
-    print(A**0)
-    print(A**-1)
-    print(A**-2)
-    print('identity again')
-    I = RationalMatrix.identity(3)
-    print(I.inverse())
-    print(I*I == I)
-    print(I*I.inverse())
+    tests = {
+        'testConstructor': testConstructor,
+        'testDimensions': testDimensions,
+        'testTypes': testTypes,
+        'testEntries': testEntries
+    }
+    for k,v in tests.items():
+        v()
+        print(f'pass: {k}')
