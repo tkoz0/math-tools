@@ -98,16 +98,27 @@ class RationalMatrix:
         return [self.M[r][c] for r in range(self.rows())]
     def getMatrix(self): return self.M
 
-####### TODO TEST ALL BELOW ########
-
-    # construct a submatrix
-    def submatrix(): pass
+    # construct a submatrix, in 2 different ways
+    # if r1 and c1 are lists, return the intersection of those rows
+    # otherwise, use (r1,c1) and (r2,c2) as upper left and lower right
+    def subMatrix(self,r1,c1,r2=None,c2=None):
+        if type(r1) == type(c1) == type(r2) == type(c2) == int:
+            if not (0<=r1<=r2<self.rows() and 0<=c1<=c2<self.cols()):
+                raise ValueError()
+            M = RationalMatrix(1)
+            M.M = [r[c1:c2+1] for r in self.M[r1:r2+1]]
+            return M
+        elif type(r1) == list and type(c1) == list:
+            M = RationalMatrix(1)
+            M.M = [[self.M[r][c] for c in c1] for r in r1]
+            return M
+        else: raise TypeError()
 
     # returns a new matrix that is equal to the transpose
     def transpose(self) -> 'RationalMatrix': # returns a new matrix
         T = RationalMatrix(1)
-        T.M = [ [M[c][r] for c in range(self.rows())]
-                for r in range(self.cols())]
+        T.M = [[self.M[c][r] for c in range(self.rows())]
+               for r in range(self.cols())]
         return T
 
     # augments the matrix (such as for solving a linear system) by adding a
@@ -120,6 +131,17 @@ class RationalMatrix:
         for r in range(self.rows()): # append to each row
             if type(b[r]) == Fraction: self.M[r].append(b[r])
             else: self.M[r].append(Fraction(b[r]))
+
+    # row manipulations, these modify the matrix
+    def swapRows(self,r1:int,r2:int):
+        self.M[r1], self.M[r2] = self.M[r2], self.M[r1]
+    def multRow(self,a:Union[int,Fraction],r:int):
+        if type(a) != int and type(a) != Fraction: raise TypeError()
+        self.M[r] = [a*c for c in self.M[r]]
+    def addRowMult(self,a:Union[int,Fraction],r1:int,r2:int): # add a*r1 to r2
+        if type(a) != int and type(a) != Fraction: raise TypeError()
+        for c in range(self.cols()):
+            self.M[r2][c] += a * self.M[r1][c]
 
     # compute determinant using cofactor expansion (slow)
     def detCofactor(self) -> Fraction:
@@ -214,17 +236,6 @@ class RationalMatrix:
     def gaussJordanElim():
         pass
 
-    # row manipulations, these modify the matrix
-    def swapRows(self,r1:int,r2:int):
-        self.M[r1], self.M[r2] = self.M[r2], self.M[r1]
-    def multRow(self,a:Union[int,Fraction],r:int):
-        if type(a) != int and type(a) != Fraction: raise TypeError()
-        self.M[r] = [a*c for c in self.M[r]]
-    def addRowMult(self,a:Union[int,Fraction],r1:int,r2:int): # add a*r1 to r2
-        if type(a) != int and type(a) != Fraction: raise TypeError()
-        for c in range(self.cols()):
-            self.M[r2][c] += a * self.M[r1][c]
-
     # string representation: each row as [n1 n2 ... nc], columns are aligned
     def __str__(self):
         M = [list(map(str,r)) for r in self.M]
@@ -255,6 +266,14 @@ class RationalMatrix:
                   for r in range(self.rows())]
 
     # operator overloading
+    def __neg__(self):
+        pass
+    def __iadd__(self,M):
+        pass
+    def __isub__(self,M):
+        pass
+    def __imul__(self,M):
+        pass
     def __add__(self,M):
         if self.rows() != M.rows() or self.cols() != M.cols():
             raise DimensionError()
@@ -295,7 +314,7 @@ class RationalMatrix:
     def __eq__(self,M):
         return self.rows() == M.rows() and \
             reduce(lambda x,y: x and y, [self.M[r] == M.M[r]
-                   for r in range(self.rows())])
+                                         for r in range(self.rows())])
 
 def _makeMatrix(L): # convert to fractions
     M = RationalMatrix(1)
@@ -408,12 +427,90 @@ def testEntries(): # get(), getRow(), getCol(), set(), setRow(), setCol()
     assert C.getCol(2) == [Fraction(0),0,Fraction(-2,3)]
     C._checkRep()
 
+def testSubMatrix(): # subMatrix()
+    # [1 3 5]
+    # [2 4 6]
+    F = _makeMatrix([[1,3,5],[2,4,6]])
+    F1 = F.subMatrix([0],[1,2])
+    assert F1 == _makeMatrix([[3,5]])
+    F2 = F.subMatrix([0,1],[1])
+    assert F2 == _makeMatrix([[3],[4]])
+    # [  -1   1   -1   1]
+    # [-1/2   1 -1/2   1]
+    # [  -1 1/2   -1 1/2]
+    A = _makeMatrix([[-1,1,-1,1],[-Fraction(1,2),1,-Fraction(1,2),1],
+                     [-1,Fraction(1,2),-1,Fraction(1,2)]])
+    A1 = A.subMatrix(0,0,1,2)
+    assert A1 == _makeMatrix([[-1,1,-1],[-Fraction(1,2),1,-Fraction(1,2)]])
+    A2 = A.subMatrix([2,1],[3])
+    assert A2 == _makeMatrix([[Fraction(1,2)],[1]])
+    A3 = A.subMatrix([0],[1])
+    assert A3 == _makeMatrix([[1]])
+    A4 = A.subMatrix([1,2],[2,3])
+    assert A4 == _makeMatrix([[-Fraction(1,2),1],[-1,Fraction(1,2)]])
+
+def testTranspose(): # transpose()
+    # [1   2    3]
+    # [0 1/2  1/3]
+    # [0   0 -1/4]
+    C = _makeMatrix([[1,2,3],[0,Fraction(1,2),Fraction(1,3)],
+                     [0,0,Fraction(-1,4)]])
+    # [1   0    0]
+    # [2 1/2    0]
+    # [3 1/3 -1/4]
+    D = _makeMatrix([[1,0,0],[2,Fraction(1,2),0],
+                     [3,Fraction(1,3),Fraction(-1,4)]])
+    assert C.transpose() == D and D.transpose() == C
+    # [1 2]
+    # [3 4]
+    # [5 6]
+    E = _makeMatrix([[1,2],[3,4],[5,6]])
+    # [1 3 5]
+    # [2 4 6]
+    F = _makeMatrix([[1,3,5],[2,4,6]])
+    assert E.transpose() == F and F.transpose() == E
+
+def testAugment(): # augment()
+    pass
+
+def testRowOps(): # swapRows(), multRow(), addRowMult()
+    pass
+
+def testDeterminant(): # detCofactor(), detRowReduce()
+    pass
+
+def testInverse(): # inverse()
+    pass
+
+def testElim(): # gaussElim(), gasusJordanElim()
+    pass
+
+def testStr(): # __str__()
+    pass
+
+def testIandD(): # identity(), diagonal()
+    pass
+
+def testArithmetic(): # __neg__(), __iadd__(), __isub__(), __imul__()
+    # __add__(), __sub__(), __mul__(), __pow__()
+    pass
+
 if __name__ == '__main__':
     tests = {
         'testConstructor': testConstructor,
         'testDimensions': testDimensions,
         'testTypes': testTypes,
-        'testEntries': testEntries
+        'testEntries': testEntries,
+        'testSubMatrix': testSubMatrix,
+        'testTranspose': testTranspose,
+        'testAugment': testAugment,
+        'testRowOps': testRowOps,
+        'testDeterminant': testDeterminant,
+        'testInverse': testInverse,
+        'testElim': testElim,
+        'testStr': testStr,
+        'testIandD': testIandD,
+        'testArithmetic': testArithmetic
     }
     for k,v in tests.items():
         v()
