@@ -267,34 +267,42 @@ class RationalMatrix:
 
     # operator overloading
     def __neg__(self):
-        pass
+        M = self.clone()
+        M.scale(-1)
+        return M
+    def __pos__(self):
+        return self.clone()
     def __iadd__(self,M):
-        pass
+        if self.rows() != M.rows() or self.cols() != M.cols():
+            raise DimensionError()
+        self.M = [[self.M[r][c] + M.M[r][c] for c in range(self.cols())]
+               for r in range(self.rows())]
     def __isub__(self,M):
-        pass
+        if self.rows() != M.rows() or self.cols() != M.cols():
+            raise DimensionError()
+        self.M = [[self.M[r][c] - M.M[r][c] for c in range(self.cols())]
+               for r in range(self.rows())]
     def __imul__(self,M):
-        pass
-    def __add__(self,M):
-        if self.rows() != M.rows() or self.cols() != M.cols():
-            raise DimensionError()
-        N = RationalMatrix(1)
-        N.M = [[self.M[r][c] + M.M[r][c] for c in range(self.cols())]
-               for r in range(self.rows())]
-        return N
-    def __sub__(self,M):
-        if self.rows() != M.rows() or self.cols() != M.cols():
-            raise DimensionError()
-        N = RationalMatrix(1)
-        N.M = [[self.M[r][c] - M.M[r][c] for c in range(self.cols())]
-               for r in range(self.rows())]
-        return N
-    def __mul__(self,M):
         if self.cols() != M.rows(): raise DimensionError()
-        N = RationalMatrix(1)
-        N.M = [[sum(self.M[r][i] * M.M[i][c] for i in range(self.cols()))
+        self.M = [[sum(self.M[r][i] * M.M[i][c] for i in range(self.cols()))
                 for c in range(M.cols())]
                for r in range(self.rows())]
+    def __add__(self,M):
+        N = self.clone()
+        N += M
         return N
+    def __sub__(self,M):
+        N = self.clone()
+        N -= M
+        return N
+    def __mul__(self,M):
+        N = self.clone()
+        N *= M
+        return N
+    def __rmul__(self,a:Union[int,Fraction]):
+        M = self.clone()
+        M.scale(a)
+        return M
     def __pow__(self,p:int): # TODO possibly use diagonalization
         if type(p) != int: raise TypeError()
         if not self.isSquare(): raise DimensionError()
@@ -315,6 +323,7 @@ class RationalMatrix:
         return self.rows() == M.rows() and \
             reduce(lambda x,y: x and y, [self.M[r] == M.M[r]
                                          for r in range(self.rows())])
+    def __ne__(self,M): return not (self == M)
 
 def _makeMatrix(L): # convert to fractions
     M = RationalMatrix(1)
@@ -471,29 +480,55 @@ def testTranspose(): # transpose()
     assert E.transpose() == F and F.transpose() == E
 
 def testAugment(): # augment()
-    pass
+    # [1 2 3]
+    # [4 5 6]
+    # [4 5 6]
+    # [1 2 3]
+    A = _makeMatrix([[1,2,3],[4,5,6],[6,5,4],[3,2,1]])
+    A.augment([-Fraction(1,1),-Fraction(1,2),-Fraction(1,3),-Fraction(1,4)])
+    # [1 2 3   -1]
+    # [4 5 6 -1/2]
+    # [4 5 6 -1/3]
+    # [1 2 3 -1/4]
+    B = _makeMatrix([[1,2,3,-1],[4,5,6,Fraction(-1,2)],[6,5,4,Fraction(-1,3)],
+                     [3,2,1,Fraction(-1,4)]])
+    assert A == B
 
 def testRowOps(): # swapRows(), multRow(), addRowMult()
-    pass
+    # [ 1/2  1/2  1/2  1/2]
+    # [-1/3 -1/3 -1/3 -1/3]
+    # [   0    0    0    0]
+    A = _makeMatrix([[Fraction(1,2)]*4,[Fraction(-1,3)]*4,[0]*4])
+    B = A.clone()
+    A.swapRows(1,2)
+    A.swapRows(1,0)
+    assert A.getRow(0) == B.getRow(2)
+    assert A.getRow(1) == B.getRow(0)
+    assert A.getRow(2) == B.getRow(1)
+    B.addRowMult(2,1,0)
+    assert B.getRow(1) == [-Fraction(1,3)]*4
+    assert B.getRow(0) == [-Fraction(1,6)]*4
+    B.multRow(Fraction(-1,5),1)
+    assert B.getRow(1) == [Fraction(1,15)]*4
 
 def testDeterminant(): # detCofactor(), detRowReduce()
-    pass
+    assert 0
 
 def testInverse(): # inverse()
-    pass
+    assert 0
 
 def testElim(): # gaussElim(), gasusJordanElim()
-    pass
+    assert 0
 
 def testStr(): # __str__()
-    pass
+    assert 0
 
 def testIandD(): # identity(), diagonal()
-    pass
+    assert 0
 
 def testArithmetic(): # __neg__(), __iadd__(), __isub__(), __imul__()
     # __add__(), __sub__(), __mul__(), __pow__()
-    pass
+    assert 0
 
 if __name__ == '__main__':
     tests = {
