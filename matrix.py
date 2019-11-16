@@ -163,10 +163,12 @@ class RationalMatrix:
                 use_row = False
                 best_index, most_zeroes = c, col0[c]
         if use_row: # optimize computation by using row/col with
-            return sum(self._parity(best_index+c) * self.M[best_index][c]
+            return sum(RationalMatrix._parity(best_index+c)
+                       * self.M[best_index][c]
                        * self._det_split(best_index,c).detCofactor()
                        for c in range(n))
-        else: return sum(self._parity(r+best_index) * self.M[r][best_index]
+        else: return sum(RationalMatrix._parity(r+best_index)
+                         * self.M[r][best_index]
                          * self._det_split(r,best_index).detCofactor()
                          for r in range(n))
 
@@ -511,11 +513,60 @@ def testRowOps(): # swapRows(), multRow(), addRowMult()
     B.multRow(Fraction(-1,5),1)
     assert B.getRow(1) == [Fraction(1,15)]*4
 
+def _matrixDet(M):
+    det = M.detCofactor()
+    assert det == M.detRowReduce()
+    return det
+
 def testDeterminant(): # detCofactor(), detRowReduce()
-    assert 0
+    A = _makeMatrix([[-Fraction(1,4)]])
+    assert _matrixDet(A) == -Fraction(1,4)
+    A = _makeMatrix([[Fraction(1,2)]*2,[Fraction(1,2),-Fraction(1,2)]])
+    assert _matrixDet(A) == -Fraction(1,2)
+    # [1 1 0 2 1]
+    # [1 2 1 0 0]
+    # [0 1 0 1 2]
+    # [1 0 0 2 1]
+    # [1 1 1 1 1]
+    B = _makeMatrix([[1,1,0,2,1],[1,2,1,0,0],[0,1,0,1,2],[1,0,0,2,1],
+                     [1,1,1,1,1]])
+    assert _matrixDet(B) == 1
+    # [  6  -1/2  1/3]
+    # [ 1/4   -1   -1]
+    # [11/2  3/2  7/3]
+    C = _makeMatrix([[6,-Fraction(1,2),Fraction(1,3)],[Fraction(1,4),-1,-1],
+                     [Fraction(11,2),Fraction(3,2),Fraction(7,3)]])
+    assert _matrixDet(C) == 0
 
 def testInverse(): # inverse()
-    assert 0
+    A = _makeMatrix([[-Fraction(1,4)]])
+    AI = A.inverse()
+    assert A.inverse() == _makeMatrix([[-4]])
+    # [  6  -1/2  1/3]
+    # [ 1/4   -1   -1]
+    # [11/2  3/2  7/3]
+    C = _makeMatrix([[6,-Fraction(1,2),Fraction(1,3)],[Fraction(1,4),-1,-1],
+                     [Fraction(11,2),Fraction(3,2),Fraction(7,3)]])
+    try:
+        CI = C.inverse()
+        assert 0
+    except: pass
+    # [1 1 0 2 1]
+    # [1 2 1 0 0]
+    # [0 1 0 1 2]
+    # [1 0 0 2 1]
+    # [1 1 1 1 1]
+    B = _makeMatrix([[1,1,0,2,1],[1,2,1,0,0],[0,1,0,1,2],[1,0,0,2,1],
+                     [1,1,1,1,1]])
+    # [-4  3  1  5 -3]
+    # [ 1  0  0 -1  0]
+    # [ 2 -2 -1 -3  3]
+    # [ 3 -2 -1 -3  2]
+    # [-2  1  1  2 -1]
+    BI = _makeMatrix([[-4,3,1,5,-3],[1,0,0,-1,0],[2,-2,-1,-3,3],[3,-2,-1,-3,2],
+                      [-2,1,1,2,-1]])
+    assert B.inverse() == BI
+    assert BI.inverse() == B
 
 def testElim(): # gaussElim(), gasusJordanElim()
     assert 0
