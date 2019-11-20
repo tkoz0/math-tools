@@ -32,7 +32,10 @@ class RationalMatrix:
         self.M = [[Fraction(0)]*c for _ in range(r)]
 
     # return a copy of this matrix
-    def clone(self): return copy.deepcopy(self)
+    def clone(self) -> 'RationalMatrix':
+        M = RationalMatrix(1)
+        M.M = [r[:] for r in self.M]
+        return M
 
     # check matrix dimensions
     def rows(self) -> int: return len(self.M)
@@ -251,11 +254,11 @@ class RationalMatrix:
                          for r in M)
 
     # some types of matrices
-    def identity(n:int): # identity matrix
+    def identity(n:int) -> 'RationalMatrix': # identity matrix
         M = RationalMatrix(n)
         for i in range(n): M.set(i,i,1)
         return M
-    def diagonal(e:list): # diagonal matrix with entries
+    def diagonal(e:list) -> 'RationalMatrix': # diagonal matrix with entries
         if type(e) != list: raise TypeError()
         M = RationalMatrix(len(e))
         for i,n in enumerate(e):
@@ -284,7 +287,12 @@ class RationalMatrix:
             raise DimensionError()
         self.M = [[self.M[r][c] - M.M[r][c] for c in range(self.cols())]
                for r in range(self.rows())]
-    def __imul__(self,M):
+    def __imul__(self,M:Union[int,Fraction,'RationalMatrix']):
+        if type(M) == int or type(M) == Fraction:
+            self.M = [[self.M[r][c]*M for c in range(self.cols())]
+                      for r in range(self.rows())]
+            return
+        if type(self) != type(M): raise TypeError()
         if self.cols() != M.rows(): raise DimensionError()
         self.M = [[sum(self.M[r][i] * M.M[i][c] for i in range(self.cols()))
                 for c in range(M.cols())]
@@ -347,6 +355,7 @@ def testConstructor():
     A = _makeMatrix([[1,2],[3,4],[Fraction(1,2),Fraction(-1,2)]])
     B = A.clone()
     assert A == B
+    assert not (A is B)
     assert not (A.M is B.M)
 
 def testDimensions(): # rows(), cols(), isSquare()
@@ -567,6 +576,8 @@ def testInverse(): # inverse()
                       [-2,1,1,2,-1]])
     assert B.inverse() == BI
     assert BI.inverse() == B
+    assert B * BI == RationalMatrix.identity(5)
+    assert BI * B == RationalMatrix.identity(5)
 
 def testElim(): # gaussElim(), gasusJordanElim()
     assert 0
