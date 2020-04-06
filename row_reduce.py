@@ -28,6 +28,8 @@ def pmatrix(M):
                      for r in M) + \
            '\n\\end{pmatrix} \\\\'
 
+# TODO add support to perform row operations with integers only
+
 def elim_g(): # gauss elim to upper triangle
     global M
     print('\\\\\\text{Gaussian Elimination}\\\\\\\\')
