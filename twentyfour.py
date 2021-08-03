@@ -2,10 +2,6 @@ import pyperclip
 import sys
 from fractions import Fraction
 
-target = Fraction(sys.argv[1])
-inputs = list(map(Fraction,sys.argv[2:]))
-assert len(inputs) > 0
-
 # binary operators that can always be used
 # division uses / because Fraction is being used for more flexibility
 ops = \
@@ -55,12 +51,16 @@ def t2s(t,init=True): # tree to string
     r = t2s(t[1],False)+t[0]+t2s(t[2],False)
     return r if init else '('+r+')'
 
-result = search(inputs)
+if __name__ == '__main__':
+    target = Fraction(sys.argv[1])
+    inputs = list(map(Fraction,sys.argv[2:]))
+    assert len(inputs) > 0
+    result = search(inputs)
+    if target in result:
+        print('found solution')
+        print(target,'=',t2s(result[target]))
+        pyperclip.copy(t2s(result[target]))
+    else:
+        print('no solution')
+        pyperclip.copy('none')
 
-if target in result:
-    print('found solution')
-    print(target,'=',t2s(result[target]))
-    pyperclip.copy(t2s(result[target]))
-else:
-    print('no solution')
-    pyperclip.copy('none')
