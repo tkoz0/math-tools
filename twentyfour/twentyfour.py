@@ -1,4 +1,3 @@
-import pyperclip
 import sys
 from fractions import Fraction
 
@@ -10,6 +9,14 @@ ops = \
     '-': lambda x,y : x-y,
     '*': lambda x,y : x*y,
     '/': lambda x,y : x/y
+}
+
+precedence = \
+{
+    '+': 1,
+    '-': 1,
+    '*': 2,
+    '/': 2
 }
 
 # returns a dictionary mapping possible value to a parse tree for computing it
@@ -45,11 +52,18 @@ def search(nums):
                     S[r] = [op,A_vals[a],B_vals[b]]
     return S
 
-def t2s(t,init=True): # tree to string
+def t2s(t): # tree to string
     if type(t) != list:
         return str(t)
-    r = t2s(t[1],False)+t[0]+t2s(t[2],False)
-    return r if init else '('+r+')'
+    # do some operator precedence stuff to remove unnecessary parethesis
+    top = precedence[t[0]]
+    lop = 99 if type(t[1]) != list else precedence[t[1][0]]
+    rop = 99 if type(t[2]) != list else precedence[t[2][0]]
+    lstr = t2s(t[1])
+    rstr = t2s(t[2])
+    if lop < top: lstr = '('+lstr+')'
+    if rop < top: rstr = '('+rstr+')'
+    return lstr+t[0]+rstr
 
 if __name__ == '__main__':
     target = Fraction(sys.argv[1])
@@ -59,8 +73,6 @@ if __name__ == '__main__':
     if target in result:
         print('found solution')
         print(target,'=',t2s(result[target]))
-        pyperclip.copy(t2s(result[target]))
     else:
         print('no solution')
-        pyperclip.copy('none')
 
