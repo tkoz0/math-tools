@@ -25,6 +25,8 @@ precedence = \
 # operation is a string key from ops
 def search(nums):
     assert len(nums) > 0
+    for num in nums:
+        assert type(num) == Fraction
     if len(nums) == 1:
         return {nums[0]:nums[0]}
     # use the bits to determine set inclusion for the partitioning
@@ -46,21 +48,21 @@ def search(nums):
                     # try/except because zero division is possible
                     try:
                         r = ops[op](a,b)
+                        if r in S: continue # already found a way to compute it
+                        S[r] = [op,A_vals[a],B_vals[b]]
                     except:
                         continue
-                    if r in S: continue # already found a way to compute it
-                    S[r] = [op,A_vals[a],B_vals[b]]
     return S
 
-def t2s(t): # tree to string
+def tree2str(t): # tree to string
     if type(t) != list:
         return str(t)
     # do some operator precedence stuff to remove unnecessary parethesis
     top = precedence[t[0]]
     lop = 99 if type(t[1]) != list else precedence[t[1][0]]
     rop = 99 if type(t[2]) != list else precedence[t[2][0]]
-    lstr = t2s(t[1])
-    rstr = t2s(t[2])
+    lstr = tree2str(t[1])
+    rstr = tree2str(t[2])
     if lop < top: lstr = '('+lstr+')'
     if rop < top: rstr = '('+rstr+')'
     return lstr+t[0]+rstr
@@ -72,7 +74,7 @@ if __name__ == '__main__':
     result = search(inputs)
     if target in result:
         print('found solution')
-        print(target,'=',t2s(result[target]))
+        print(target,'=',tree2str(result[target]))
     else:
         print('no solution')
 
