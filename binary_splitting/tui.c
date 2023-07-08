@@ -22,11 +22,27 @@ tui_t;
 // 64 bit multiply to 128 bit result
 static inline uint64_t mul64hi(uint64_t a, uint64_t b)
 {
-    return (a * (__uint128_t) b) >> 64;
+    return ((__uint128_t) a * (__uint128_t) b) >> 64;
 }
 static inline uint64_t mul64lo(uint64_t a, uint64_t b)
 {
     return a * b;
+}
+
+typedef struct
+{
+    uint64_t lo, hi;
+}
+mul64_t;
+
+// 64 bit multiply with single instruction, GCC 9.4 optimizes to 1 instruction
+static inline mul64_t mul64(uint64_t a, uint64_t b)
+{
+    mul64_t ret;
+    __uint128_t c = (__uint128_t) a * (__uint128_t) b;
+    ret.lo = c;
+    ret.hi = c >> 64;
+    return ret;
 }
 
 // initialize integer
